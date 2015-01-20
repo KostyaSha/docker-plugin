@@ -121,11 +121,14 @@ public class DockerSlave extends AbstractCloudSlave {
 
         DockerClient client = getClient();
 
-
+        LOGGER.log(Level.FINE, "Tag: "+theRun.getDisplayName().replace("#","-") +
+                " repo: " + theRun.getParent().getDisplayName() +
+                        "containerId: " + containerId
+        );
          // Commit
         String tag_image = client.container(containerId).createCommitCommand()
                     .repo(theRun.getParent().getDisplayName())
-                    .tag(theRun.getDisplayName().replace("#","-")) // allowed only [A-Za-z0-9_.-]
+                    .tag(theRun.getDisplayName().replace("#","b")) // allowed only ([a-zA-Z_][a-zA-Z0-9_]*)
                     .author("Jenkins")
                     .execute();
 

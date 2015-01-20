@@ -64,10 +64,13 @@ public class DockerJobProperty extends hudson.model.JobProperty<AbstractProject<
     @Extension
     public static final class DescriptorImpl extends JobPropertyDescriptor {
         public FormValidation doCheckAdditionalTag(@QueryParameter String additionalTag){
+            if (additionalTag.trim().length() == 0){
+                return FormValidation.ok(); // skip zero value
+            }
             // Exclude 500 error during commit
             if ((additionalTag.length() < 2) || (additionalTag.length() > 30) ||
-                    (!additionalTag.matches("[A-Za-z0-9_.-]*"))){
-                return FormValidation.error("Illegal tag name: only [A-Za-z0-9_.-] are allowed, " +
+                    (!additionalTag.matches("[a-zA-Z_][a-zA-Z0-9_]*"))){
+                return FormValidation.error("Illegal tag name: only [a-zA-Z_][a-zA-Z0-9_]* are allowed, " +
                         "minimum 2, maximum 30 in length");
             }
             return FormValidation.ok();
