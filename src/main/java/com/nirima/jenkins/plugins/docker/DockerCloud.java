@@ -23,6 +23,7 @@ import jenkins.model.Jenkins;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 
+import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 import javax.servlet.ServletException;
 import java.io.IOException;
@@ -148,49 +149,48 @@ public class DockerCloud extends Cloud {
 
             List<NodeProvisioner.PlannedNode> r = new ArrayList<NodeProvisioner.PlannedNode>();
 
-            final DockerTemplate t = getTemplate(label);
+//            final DockerTemplate t = getTemplate(label);
+            List<DockerTemplate> dockerTemplates = getTemplates(label);
+            for (final DockerTemplate t : dockerTemplates) {
+                while (excessWorkload > 0) {
 
-            while (excessWorkload>0) {
+                    if (!addProvisionedSlave(t.image, t.instanceCap)) {
+                        break;
+                    }
 
-                if (!addProvisionedSlave(t.image, t.instanceCap)) {
-                    break;
+                    r.add(new NodeProvisioner.PlannedNode(t.getDisplayName(),
+                            Computer.threadPoolForRemoting.submit(new Callable<Node>() {
+                                public Node call() throws Exception {
+                                    // TODO: record the output somewhere
+                                    DockerSlave slave = null;
+                                    try {
+                                        slave = t.provision(new StreamTaskListener(System.out));
+                                        Jenkins.getInstance().addNode(slave);
+                                        // Docker instances may have a long init script. If we declare
+                                        // the provisioning complete by returning without the connect
+                                        // operation, NodeProvisioner may decide that it still wants
+                                        // one more instance, because it sees that (1) all the slaves
+                                        // are offline (because it's still being launched) and
+                                        // (2) there's no capacity provisioned yet.
+                                        //
+                                        // deferring the completion of provisioning until the launch
+                                        // goes successful prevents this problem.
+                                        slave.toComputer().connect(false).get();
+                                        return slave;
+                                    } catch (Exception ex) {
+                                        LOGGER.log(Level.SEVERE, "Error in provisioning; slave=" + slave + ", template=" + t);
+
+                                        ex.printStackTrace();
+                                        throw Throwables.propagate(ex);
+                                    } finally {
+                                        decrementAmiSlaveProvision(t.image);
+                                    }
+                                }
+                            })
+                            , t.getNumExecutors()));
+
+                    excessWorkload -= t.getNumExecutors();
                 }
-
-                r.add(new NodeProvisioner.PlannedNode(t.getDisplayName(),
-                        Computer.threadPoolForRemoting.submit(new Callable<Node>() {
-                            public Node call() throws Exception {
-                                // TODO: record the output somewhere
-                                DockerSlave slave = null;
-                                try {
-                                    slave = t.provision(new StreamTaskListener(System.out));
-                                    Jenkins.getInstance().addNode(slave);
-                                    // Docker instances may have a long init script. If we declare
-                                    // the provisioning complete by returning without the connect
-                                    // operation, NodeProvisioner may decide that it still wants
-                                    // one more instance, because it sees that (1) all the slaves
-                                    // are offline (because it's still being launched) and
-                                    // (2) there's no capacity provisioned yet.
-                                    //
-                                    // deferring the completion of provisioning until the launch
-                                    // goes successful prevents this problem.
-                                    slave.toComputer().connect(false).get();
-                                    return slave;
-                                }
-                                catch(Exception ex) {
-                                    LOGGER.log(Level.SEVERE, "Error in provisioning; slave=" + slave + ", template=" + t);
-
-                                    ex.printStackTrace();
-                                    throw Throwables.propagate(ex);
-                                }
-                                finally {
-                                    decrementAmiSlaveProvision(t.image);
-                                }
-                            }
-                        })
-                        ,t.getNumExecutors()));
-
-                excessWorkload -= t.getNumExecutors();
-
             }
             return r;
         } catch (Exception e) {
@@ -204,7 +204,7 @@ public class DockerCloud extends Cloud {
         return getTemplate(label)!=null;
     }
 
-    public DockerTemplate getTemplate(String template) {
+    @CheckForNull public DockerTemplate getTemplate(String template) {
         for (DockerTemplate t : templates) {
             if(t.image.equals(template)) {
                 return t;
@@ -216,7 +216,7 @@ public class DockerCloud extends Cloud {
     /**
      * Gets {@link DockerTemplate} that has the matching {@link Label}.
      */
-    public DockerTemplate getTemplate(Label label) {
+    @CheckForNull public DockerTemplate getTemplate(Label label) {
         for (DockerTemplate t : templates) {
             if(label == null || label.matches(t.getLabelSet())) {
                 return t;
@@ -224,6 +224,20 @@ public class DockerCloud extends Cloud {
         }
         return null;
     }
+
+    /**
+     * Multiple amis can have the same label
+     */
+    public List<DockerTemplate> getTemplates(Label label) {
+        ArrayList<DockerTemplate> dockerTemplates = new ArrayList<DockerTemplate>();
+        for (DockerTemplate t : templates) {
+            if (label == null || label.matches(t.getLabelSet())) {
+                dockerTemplates.add(t);
+            }
+        }
+        return dockerTemplates;
+    }
+
 
     /**
      * Add a new template to the cloud
@@ -234,8 +248,7 @@ public class DockerCloud extends Cloud {
     }
 
     /**
-     * Remove a
-     * @param t
+     * Remove ami
      */
     public void removeTemplate(DockerTemplate t) {
         this.templates.remove(t);
@@ -253,8 +266,17 @@ public class DockerCloud extends Cloud {
 
         List<Container> containers = dockerClient.containers().finder().allContainers(false).list();
 
-        if (ami == null)
+        if (ami == null) {
+            // filter not templated instances
+            ArrayList<Container> rmc = new ArrayList<Container>();
+            for (Container c : containers){
+                if (getTemplate(c.getImage()) == null){
+                    rmc.add(c);
+                }
+            }
+            containers.removeAll(rmc);
             return containers.size();
+        }
 
         List<Image> images = dockerClient.images().finder().allImages(true).filter(ami).list();
         LOGGER.log(Level.INFO, "Images found: " + images);
