@@ -19,6 +19,7 @@
     <modules>
         <module>docker-plugin</module>
         <module>docker-java-shaded</module>
+        <module>docker-its</module>
     </modules>
 
     <scm>
@@ -48,18 +49,10 @@
         <jdk.target>1.7</jdk.target>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>repo.jenkins-ci.org</id>
-            <url>http://repo.jenkins-ci.org/public/</url>
-        </repository>
-    </repositories>
-    <pluginRepositories>
-        <pluginRepository>
-            <id>repo.jenkins-ci.org</id>
-            <url>http://repo.jenkins-ci.org/public/</url>
-        </pluginRepository>
-    </pluginRepositories>
+    <modules>
+        <module>docker-plugin</module>
+        <module>docker-java-shaded</module>
+    </modules>
 
     <build>
         <finalName>${project.artifactId}</finalName>

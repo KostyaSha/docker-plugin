@@ -24,7 +24,11 @@ import com.nirima.jenkins.plugins.docker.client.DockerCmdExecConfigBuilderForPlu
 import com.nirima.jenkins.plugins.docker.launcher.DockerComputerLauncher;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
-import hudson.model.*;
+import hudson.model.Computer;
+import hudson.model.Descriptor;
+import hudson.model.ItemGroup;
+import hudson.model.Label;
+import hudson.model.Node;
 import hudson.slaves.Cloud;
 import hudson.slaves.ComputerLauncher;
 import hudson.slaves.NodeProvisioner;
@@ -46,7 +50,12 @@ import javax.annotation.CheckForNull;
 import javax.servlet.ServletException;
 import javax.ws.rs.ProcessingException;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
@@ -231,21 +240,23 @@ public class DockerCloud extends Cloud {
                 }
 
                 r.add(new NodeProvisioner.PlannedNode(
-                                t.getDockerTemplateBase().getDisplayName(),
-                                Computer.threadPoolForRemoting.submit(new Callable<Node>() {
-                                    public Node call() throws Exception {
-                                        try {
-                                            return provisionWithWait(t);
-                                        } catch (Exception ex) {
-                                            LOGGER.error("Error in provisioning; template='{}' for cloud='{}'",
-                                                    t, getDisplayName(), ex);
-                                            throw Throwables.propagate(ex);
-                                        } finally {
-                                            decrementAmiSlaveProvision(t.getDockerTemplateBase().getImage());
-                                        }
-                                    }
-                                }),
-                                t.getNumExecutors())
+                    t.getDockerTemplateBase().getDisplayName(),
+                    Computer.threadPoolForRemoting.submit(new Callable<Node>() {
+                        public Node call() throws Exception {
+                            final long start = System.currentTimeMillis();
+                            try {
+                                return provisionWithWait(t);
+                            } catch (Exception ex) {
+                                LOGGER.error("Error in provisioning; template='{}' for cloud='{}'",
+                                        t, getDisplayName(), ex);
+                                throw Throwables.propagate(ex);
+                            } finally {
+                                LOGGER.debug("Node preparation time: {} ms", System.currentTimeMillis() - start);
+                                decrementAmiSlaveProvision(t.getDockerTemplateBase().getImage());
+                            }
+                        }
+                    }),
+                    t.getNumExecutors())
                 );
 
                 excessWorkload -= t.getNumExecutors();
@@ -312,14 +323,14 @@ public class DockerCloud extends Cloud {
         return containerId;
     }
 
-    private void pullImage(DockerTemplate dockerTemplate)  throws IOException {
+    private void pullImage(DockerTemplate dockerTemplate) throws IOException {
+        long startTime = System.currentTimeMillis();
+
         final String imageName = dockerTemplate.getDockerTemplateBase().getImage();
-
-        List<Image> images = getClient().listImagesCmd().exec();
-
         NameParser.ReposTag repostag = NameParser.parseRepositoryTag(imageName);
         // if image was specified without tag, then treat as latest
         final String fullImageName = repostag.repos + ":" + (repostag.tag.isEmpty() ? "latest" : repostag.tag);
+        List<Image> images = getClient().listImagesCmd().exec();
 
         boolean imageExists = Iterables.any(images, new Predicate<Image>() {
             @Override
@@ -336,7 +347,6 @@ public class DockerCloud extends Cloud {
             LOGGER.info("Pulling image '{}' {}. This may take awhile...", imageName,
                     imageExists ? "again" : "since one was not found");
 
-            long startTime = System.currentTimeMillis();
             //Identifier amiId = Identifier.fromCompoundString(ami);
             getClient().pullImageCmd(imageName).exec(new PullImageResultCallback()).awaitSuccess();
             long pullTime = System.currentTimeMillis() - startTime;
@@ -453,8 +463,8 @@ public class DockerCloud extends Cloud {
      * Counts the number of instances in Docker currently running that are using the specified image.
      *
      * @param imageName If null, then all instances are counted.
-     *            <p/>
-     *            This includes those instances that may be started outside Hudson.
+     *                  <p/>
+     *                  This includes those instances that may be started outside Hudson.
      */
     public int countCurrentDockerSlaves(final String imageName) throws Exception {
         int count = 0;
