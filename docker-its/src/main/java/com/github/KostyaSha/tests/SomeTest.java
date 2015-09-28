@@ -15,9 +15,9 @@ import java.util.Arrays;
 public class SomeTest {
 
     public static ArrayList<String> plugins = new ArrayList<String>(Arrays.asList(
-        "http://mirrors.jenkins-ci.org/plugins/ssh-credentials/latest/ssh-credentials.hpi",
-        "http://mirrors.jenkins-ci.org/plugins/token-macro/latest/token-macro.hpi",
-        "http://mirrors.jenkins-ci.org/plugins/ssh-slaves/latest/ssh-slaves.hpi"
+            "http://mirrors.jenkins-ci.org/plugins/ssh-credentials/latest/ssh-credentials.hpi",
+            "http://mirrors.jenkins-ci.org/plugins/token-macro/latest/token-macro.hpi",
+            "http://mirrors.jenkins-ci.org/plugins/ssh-slaves/latest/ssh-slaves.hpi"
     ));
 
     @ClassRule
@@ -33,13 +33,17 @@ public class SomeTest {
         d.cli.startContainerCmd(id).exec();
         final InspectContainerResponse inspect = d.cli.inspectContainerCmd(id).exec();
         final Ports.Binding[] bindings = inspect.getNetworkSettings().getPorts().getBindings().get("8080");
-        String  jenkinsHost;
+        String jenkinsHost;
         Integer jenkinsPort = null;
         for (Ports.Binding b : bindings) {
             jenkinsPort = b.getHostPort();
             jenkinsHost = b.getHostIp();
         }
+    }
 
+
+    @Test
+    public void checkRule() {
 
     }
 }
