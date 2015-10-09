@@ -1,17 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
         <groupId>com.nirima</groupId>
         <artifactId>docker-plugin-parent</artifactId>
-        <version>0.14.0-SNAPSHOT</version>
+        <version>0.16.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>docker-its</artifactId>
     <packaging>jar</packaging>
 
     <name>Docker ITs</name>
-    <description>integration tests</description>
+    <description>Docker integration tests</description>
 
     <dependencies>
         <dependency>
@@ -33,4 +35,21 @@
         </dependency>
 
     </dependencies>
+    <build>
+
+    <plugins>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <groupId>org.apache.maven.plugins</groupId>
+                <!-- should be inherited, but doesn't see this, so duplicate config -->
+                <configuration>
+                    <source>${jdk.source}</source>
+                    <target>${jdk.target}</target>
+                    <debug>${jdk.debug}</debug>
+                    <optimize>${jdk.optimize}</optimize>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
 </project>

@@ -21,7 +21,7 @@ public class SomeTest {
     ));
 
     @ClassRule
-    public static DockerHostRule d = new DockerHostRule("http://192.168.1.4:2375");
+    public static DockerHostRule d = new DockerHostRule("192.168.1.4");
 
     @Test
     public void someTest() {

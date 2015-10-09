@@ -10,7 +10,6 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import javax.annotation.CheckForNull;
-import javax.annotation.Nonnull;
 import java.io.IOException;
 
 /**
@@ -33,22 +32,6 @@ public class DockerHostRule implements TestRule {
 
     public DockerHostRule(String host) {
         this.host = host;
-    }
-
-    public void setSshUser(String sshUser) {
-        this.sshUser = sshUser;
-    }
-
-    public void setSshPass(String sshPass) {
-        this.sshPass = sshPass;
-    }
-
-    public void setHost(String host) {
-        this.host = host;
-    }
-
-    public void setDockerPort(int dockerPort) {
-        this.dockerPort = dockerPort;
     }
 
     public String getDockerUri() {
@@ -93,11 +76,14 @@ public class DockerHostRule implements TestRule {
     }
 
     private void checkSsh() {
-        getSsh().executeRemoteCommand("env");
+        try (Ssh ssh = getSsh()) {
+            ssh.executeRemoteCommand("env");
+        }
     }
 
     public Ssh getSsh() {
-        try (Ssh ssh = new Ssh(getHost())) {
+        try {
+            Ssh ssh = new Ssh(getHost());
             ssh.getConnection().authenticateWithPassword(getSshUser(), getSshPass());
             return ssh;
         } catch (IOException e) {
